@@ -1,0 +1,37 @@
+{
+  "name": "nbngcli",
+  "version": "0.1.0",
+  "description": "Unified CLI for Gmail, Google Calendar, and Google Drive",
+  "main": "dist/cli.js",
+  "bin": {
+    "nbn": "./bin/nbn.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "gmail",
+    "google-calendar",
+    "google-drive",
+    "cli",
+    "google"
+  ],
+  "author": "Nitzan Barness",
+  "license": "MIT",
+  "dependencies": {
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^140.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ]
+}
