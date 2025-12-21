@@ -7,7 +7,7 @@ import * as readline from "readline";
 import * as url from "url";
 import { OAuth2Client } from "google-auth-library";
 
-// Combined scopes for all three services
+// Combined scopes for all three services (full access)
 const SCOPES = [
   "https://mail.google.com/",
   "https://www.googleapis.com/auth/calendar",
@@ -50,10 +50,10 @@ export class OAuthFlow {
       redirectUri
     );
 
-    const authUrl = this.oauth2Client.generateAuthUrl({
-      access_type: "offline",
-      scope: SCOPES,
-    });
+    // Build URL manually with proper encoding
+    const clientId = (this.oauth2Client as unknown as { _clientId: string })._clientId;
+    const scopeStr = SCOPES.map(s => encodeURIComponent(s)).join("%20");
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scopeStr}&access_type=offline&prompt=consent`;
 
     console.log("Visit this URL to authorize:");
     console.log(authUrl);
@@ -106,10 +106,10 @@ export class OAuthFlow {
           redirectUri
         );
 
-        const authUrl = this.oauth2Client.generateAuthUrl({
-          access_type: "offline",
-          scope: SCOPES,
-        });
+        // Build URL manually with proper encoding
+        const clientId = (this.oauth2Client as unknown as { _clientId: string })._clientId;
+        const scopeStr = SCOPES.map(s => encodeURIComponent(s)).join("%20");
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scopeStr}&access_type=offline&prompt=consent`;
 
         console.log("Opening browser for authorization...");
         console.log("If browser doesn't open, visit this URL:");
@@ -185,8 +185,8 @@ export class OAuthFlow {
       cmd = "open";
       args = [url];
     } else if (process.platform === "win32") {
-      // Use cmd.exe directly for Windows - works in Git Bash too
-      cmd = "cmd.exe";
+      // Use cmd /c start with empty title - more reliable for complex URLs
+      cmd = "cmd";
       args = ["/c", "start", "", url];
     } else {
       cmd = "xdg-open";

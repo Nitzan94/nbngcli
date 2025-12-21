@@ -43,6 +43,8 @@ GMAIL COMMANDS (nbn <email> mail ...)
   drafts delete <draftId>                  Delete draft
   drafts send <draftId>                    Send draft
   send --to <emails> --subject <s> --body <b>  Send email
+  trash <messageId>                        Move message to trash
+  delete <messageId>                       Permanently delete message
   url <threadIds...>                       Generate Gmail URLs
 
 CALENDAR COMMANDS (nbn <email> cal ...)
@@ -257,6 +259,28 @@ async function handleMail(email: string, args: string[]): Promise<void> {
     const removeLabels = values.remove?.split(",") || [];
     await gmailService.modifyLabels(email, positionals, addLabels, removeLabels);
     console.log("Labels modified");
+    return;
+  }
+
+  if (command === "trash") {
+    const messageId = args[1];
+    if (!messageId) {
+      console.error("Error: Missing message ID");
+      process.exit(1);
+    }
+    await gmailService.trashMessage(email, messageId);
+    console.log("Message moved to trash");
+    return;
+  }
+
+  if (command === "delete") {
+    const messageId = args[1];
+    if (!messageId) {
+      console.error("Error: Missing message ID");
+      process.exit(1);
+    }
+    await gmailService.deleteMessage(email, messageId);
+    console.log("Message permanently deleted");
     return;
   }
 

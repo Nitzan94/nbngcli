@@ -142,6 +142,16 @@ export class GmailService {
     await gmail.users.drafts.delete({ userId: "me", id: draftId });
   }
 
+  async trashMessage(email: string, messageId: string): Promise<void> {
+    const gmail = this.getClient(email);
+    await gmail.users.messages.trash({ userId: "me", id: messageId });
+  }
+
+  async deleteMessage(email: string, messageId: string): Promise<void> {
+    const gmail = this.getClient(email);
+    await gmail.users.messages.delete({ userId: "me", id: messageId });
+  }
+
   async sendDraft(email: string, draftId: string): Promise<string> {
     const gmail = this.getClient(email);
     const response = await gmail.users.drafts.send({
