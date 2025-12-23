@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ABOUTME: Main CLI entry point for nbngcli
-// ABOUTME: Routes commands to Gmail, Calendar, and Drive services
+// ABOUTME: Routes commands to Gmail, Calendar, Drive, Sheets, and Photos services
 
 import * as fs from "fs";
 import { parseArgs } from "util";
@@ -9,15 +9,19 @@ import { OAuthFlow } from "./oauth-flow.js";
 import { GmailService } from "./services/gmail.js";
 import { CalendarService } from "./services/calendar.js";
 import { DriveService } from "./services/drive.js";
+import { SheetsService } from "./services/sheets.js";
+import { PhotosService } from "./services/photos.js";
 
 const accountStorage = new AccountStorage();
 const gmailService = new GmailService(accountStorage);
 const calendarService = new CalendarService(accountStorage);
 const driveService = new DriveService(accountStorage);
+const sheetsService = new SheetsService(accountStorage);
+const photosService = new PhotosService(accountStorage);
 
 function usage(): void {
   console.error(`
-nbn - Unified Google CLI (Gmail, Calendar, Drive)
+nbn - Unified Google CLI (Gmail, Calendar, Drive, Sheets, Photos)
 
 USAGE
 
@@ -25,6 +29,8 @@ USAGE
   nbn <email> mail <command> [options]     Gmail operations
   nbn <email> cal <command> [options]      Calendar operations
   nbn <email> drive <command> [options]    Drive operations
+  nbn <email> sheets <command> [options]   Sheets operations
+  nbn <email> photos <command> [options]   Photos operations
 
 ACCOUNT COMMANDS
 
@@ -74,6 +80,36 @@ DRIVE COMMANDS (nbn <email> drive ...)
   permissions <fileId>                     List permissions
   url <fileIds...>                         Generate Drive URLs
 
+SHEETS COMMANDS (nbn <email> sheets ...)
+
+  get <spreadsheetId>                      Get spreadsheet info
+  read <spreadsheetId> <range>             Read cell values
+  write <spreadsheetId> <range> --values <json>  Write values
+  append <spreadsheetId> <range> --values <json> Append rows
+  clear <spreadsheetId> <range>            Clear values
+  create --title <t> [--sheets S1,S2]      Create spreadsheet
+  add-sheet <spreadsheetId> --title <t>    Add sheet
+  delete-sheet <spreadsheetId> <sheetId>   Delete sheet
+  rename-sheet <spreadsheetId> <sheetId> --title <t>  Rename sheet
+  url <spreadsheetId>                      Get spreadsheet URL
+
+PHOTOS COMMANDS (nbn <email> photos ...)
+
+  albums list [--all]                      List albums
+  albums get <albumId>                     Get album details
+  albums create <title>                    Create album
+  albums share <albumId>                   Share album
+  albums add <albumId> <mediaIds...>       Add media to album
+  albums remove <albumId> <mediaIds...>    Remove media from album
+  media list [--all]                       List media items
+  media get <mediaId>                      Get media details
+  media search [--album A] [--type T] [--year Y]  Search media
+  media upload <file> [--album A] [--desc D]  Upload media
+  media download <mediaId> <outputPath>    Download media
+  shared list                              List shared albums
+  shared join <shareToken>                 Join shared album
+  shared leave <shareToken>                Leave shared album
+
 EXAMPLES
 
   nbn accounts credentials ~/credentials.json
@@ -81,6 +117,8 @@ EXAMPLES
   nbn you@gmail.com mail search "in:inbox is:unread"
   nbn you@gmail.com cal events
   nbn you@gmail.com drive ls
+  nbn you@gmail.com sheets read 1Bxi... "Sheet1!A1:D10"
+  nbn you@gmail.com photos albums list
 
 DATA STORAGE
 
@@ -785,6 +823,416 @@ async function handleDrive(email: string, args: string[]): Promise<void> {
   process.exit(1);
 }
 
+async function handleSheets(email: string, args: string[]): Promise<void> {
+  const command = args[0];
+
+  if (command === "get") {
+    const spreadsheetId = args[1];
+    if (!spreadsheetId) {
+      console.error("Error: Missing spreadsheet ID");
+      process.exit(1);
+    }
+    const info = await sheetsService.getSpreadsheet(email, spreadsheetId);
+    console.log(`ID: ${info.id}`);
+    console.log(`Title: ${info.title}`);
+    if (info.locale) console.log(`Locale: ${info.locale}`);
+    if (info.timeZone) console.log(`TimeZone: ${info.timeZone}`);
+    console.log(`\nSheets:`);
+    for (const s of info.sheets) {
+      console.log(`  ${s.id}\t${s.title}\t${s.rowCount || ""}x${s.columnCount || ""}`);
+    }
+    if (info.url) console.log(`\nURL: ${info.url}`);
+    return;
+  }
+
+  if (command === "read") {
+    const spreadsheetId = args[1];
+    const range = args[2];
+    if (!spreadsheetId || !range) {
+      console.error("Error: Missing spreadsheet ID or range");
+      process.exit(1);
+    }
+    const values = await sheetsService.readValues(email, spreadsheetId, range);
+    for (const row of values) {
+      console.log(row.map(c => c === null ? "" : String(c)).join("\t"));
+    }
+    return;
+  }
+
+  if (command === "write") {
+    const spreadsheetId = args[1];
+    const range = args[2];
+    if (!spreadsheetId || !range) {
+      console.error("Error: Missing spreadsheet ID or range");
+      process.exit(1);
+    }
+    const { values } = parseArgs({
+      args: args.slice(3),
+      options: { values: { type: "string" } },
+      allowPositionals: true,
+    });
+    if (!values.values) {
+      console.error("Error: --values is required");
+      process.exit(1);
+    }
+    const data = JSON.parse(values.values);
+    const result = await sheetsService.writeValues(email, spreadsheetId, range, data);
+    console.log(`Updated: ${result.updatedCells} cells in ${result.updatedRange}`);
+    return;
+  }
+
+  if (command === "append") {
+    const spreadsheetId = args[1];
+    const range = args[2];
+    if (!spreadsheetId || !range) {
+      console.error("Error: Missing spreadsheet ID or range");
+      process.exit(1);
+    }
+    const { values } = parseArgs({
+      args: args.slice(3),
+      options: { values: { type: "string" } },
+      allowPositionals: true,
+    });
+    if (!values.values) {
+      console.error("Error: --values is required");
+      process.exit(1);
+    }
+    const data = JSON.parse(values.values);
+    const result = await sheetsService.appendValues(email, spreadsheetId, range, data);
+    console.log(`Appended: ${result.updatedRows} rows, ${result.updatedCells} cells`);
+    return;
+  }
+
+  if (command === "clear") {
+    const spreadsheetId = args[1];
+    const range = args[2];
+    if (!spreadsheetId || !range) {
+      console.error("Error: Missing spreadsheet ID or range");
+      process.exit(1);
+    }
+    const clearedRange = await sheetsService.clearValues(email, spreadsheetId, range);
+    console.log(`Cleared: ${clearedRange}`);
+    return;
+  }
+
+  if (command === "create") {
+    const { values } = parseArgs({
+      args: args.slice(1),
+      options: { title: { type: "string" }, sheets: { type: "string" } },
+      allowPositionals: true,
+    });
+    if (!values.title) {
+      console.error("Error: --title is required");
+      process.exit(1);
+    }
+    const sheetTitles = values.sheets?.split(",");
+    const info = await sheetsService.createSpreadsheet(email, values.title, sheetTitles);
+    console.log(`Created: ${info.id}`);
+    console.log(`Title: ${info.title}`);
+    if (info.url) console.log(`URL: ${info.url}`);
+    return;
+  }
+
+  if (command === "add-sheet") {
+    const spreadsheetId = args[1];
+    if (!spreadsheetId) {
+      console.error("Error: Missing spreadsheet ID");
+      process.exit(1);
+    }
+    const { values } = parseArgs({
+      args: args.slice(2),
+      options: { title: { type: "string" } },
+      allowPositionals: true,
+    });
+    if (!values.title) {
+      console.error("Error: --title is required");
+      process.exit(1);
+    }
+    const sheet = await sheetsService.addSheet(email, spreadsheetId, values.title);
+    console.log(`Added sheet: ${sheet.id} - ${sheet.title}`);
+    return;
+  }
+
+  if (command === "delete-sheet") {
+    const spreadsheetId = args[1];
+    const sheetId = args[2];
+    if (!spreadsheetId || !sheetId) {
+      console.error("Error: Missing spreadsheet ID or sheet ID");
+      process.exit(1);
+    }
+    await sheetsService.deleteSheet(email, spreadsheetId, parseInt(sheetId));
+    console.log("Sheet deleted");
+    return;
+  }
+
+  if (command === "rename-sheet") {
+    const spreadsheetId = args[1];
+    const sheetId = args[2];
+    if (!spreadsheetId || !sheetId) {
+      console.error("Error: Missing spreadsheet ID or sheet ID");
+      process.exit(1);
+    }
+    const { values } = parseArgs({
+      args: args.slice(3),
+      options: { title: { type: "string" } },
+      allowPositionals: true,
+    });
+    if (!values.title) {
+      console.error("Error: --title is required");
+      process.exit(1);
+    }
+    await sheetsService.renameSheet(email, spreadsheetId, parseInt(sheetId), values.title);
+    console.log("Sheet renamed");
+    return;
+  }
+
+  if (command === "url") {
+    const spreadsheetId = args[1];
+    if (!spreadsheetId) {
+      console.error("Error: Missing spreadsheet ID");
+      process.exit(1);
+    }
+    console.log(sheetsService.getSpreadsheetUrl(spreadsheetId));
+    return;
+  }
+
+  console.error(`Error: Unknown sheets command: ${command}`);
+  process.exit(1);
+}
+
+async function handlePhotos(email: string, args: string[]): Promise<void> {
+  const command = args[0];
+
+  if (command === "albums") {
+    const subCmd = args[1];
+
+    if (subCmd === "list") {
+      const fetchAll = args.includes("--all");
+      let pageToken: string | undefined;
+      do {
+        const result = await photosService.listAlbums(email, 50, pageToken);
+        for (const a of result.albums) {
+          console.log(`${a.id}\t${a.title}\t${a.mediaItemsCount || 0} items`);
+        }
+        pageToken = fetchAll ? result.nextPageToken : undefined;
+      } while (pageToken);
+      return;
+    }
+
+    if (subCmd === "get") {
+      const albumId = args[2];
+      if (!albumId) {
+        console.error("Error: Missing album ID");
+        process.exit(1);
+      }
+      const album = await photosService.getAlbum(email, albumId);
+      console.log(`ID: ${album.id}`);
+      console.log(`Title: ${album.title}`);
+      console.log(`Items: ${album.mediaItemsCount || 0}`);
+      console.log(`URL: ${album.productUrl}`);
+      return;
+    }
+
+    if (subCmd === "create") {
+      const title = args[2];
+      if (!title) {
+        console.error("Error: Missing album title");
+        process.exit(1);
+      }
+      const album = await photosService.createAlbum(email, title);
+      console.log(`Created: ${album.id}`);
+      console.log(`Title: ${album.title}`);
+      console.log(`URL: ${album.productUrl}`);
+      return;
+    }
+
+    if (subCmd === "share") {
+      const albumId = args[2];
+      if (!albumId) {
+        console.error("Error: Missing album ID");
+        process.exit(1);
+      }
+      const result = await photosService.shareAlbum(email, albumId);
+      console.log(`URL: ${result.shareableUrl}`);
+      console.log(`Token: ${result.shareToken}`);
+      return;
+    }
+
+    if (subCmd === "add") {
+      const albumId = args[2];
+      const mediaIds = args.slice(3);
+      if (!albumId || mediaIds.length === 0) {
+        console.error("Error: Missing album ID or media IDs");
+        process.exit(1);
+      }
+      await photosService.addMediaToAlbum(email, albumId, mediaIds);
+      console.log(`Added ${mediaIds.length} item(s) to album`);
+      return;
+    }
+
+    if (subCmd === "remove") {
+      const albumId = args[2];
+      const mediaIds = args.slice(3);
+      if (!albumId || mediaIds.length === 0) {
+        console.error("Error: Missing album ID or media IDs");
+        process.exit(1);
+      }
+      await photosService.removeMediaFromAlbum(email, albumId, mediaIds);
+      console.log(`Removed ${mediaIds.length} item(s) from album`);
+      return;
+    }
+
+    console.error(`Error: Unknown albums command: ${subCmd}`);
+    process.exit(1);
+  }
+
+  if (command === "media") {
+    const subCmd = args[1];
+
+    if (subCmd === "list") {
+      const fetchAll = args.includes("--all");
+      let pageToken: string | undefined;
+      do {
+        const result = await photosService.listMediaItems(email, 100, pageToken);
+        for (const m of result.mediaItems) {
+          console.log(`${m.id}\t${m.filename}\t${m.mimeType}\t${m.mediaMetadata.creationTime}`);
+        }
+        pageToken = fetchAll ? result.nextPageToken : undefined;
+      } while (pageToken);
+      return;
+    }
+
+    if (subCmd === "get") {
+      const mediaId = args[2];
+      if (!mediaId) {
+        console.error("Error: Missing media ID");
+        process.exit(1);
+      }
+      const item = await photosService.getMediaItem(email, mediaId);
+      console.log(`ID: ${item.id}`);
+      console.log(`Filename: ${item.filename}`);
+      console.log(`Type: ${item.mimeType}`);
+      console.log(`Size: ${item.mediaMetadata.width}x${item.mediaMetadata.height}`);
+      console.log(`Created: ${item.mediaMetadata.creationTime}`);
+      console.log(`URL: ${item.productUrl}`);
+      return;
+    }
+
+    if (subCmd === "search") {
+      const { values } = parseArgs({
+        args: args.slice(2),
+        options: {
+          album: { type: "string" },
+          type: { type: "string" },
+          year: { type: "string" },
+        },
+        allowPositionals: true,
+      });
+      const filters: Record<string, unknown> = {};
+      if (values.type) {
+        filters.mediaTypeFilter = { mediaTypes: [values.type.toUpperCase()] };
+      }
+      if (values.year) {
+        const year = parseInt(values.year);
+        filters.dateFilter = {
+          ranges: [{ startDate: { year, month: 1, day: 1 }, endDate: { year, month: 12, day: 31 } }],
+        };
+      }
+      const result = await photosService.searchMediaItems(
+        email,
+        Object.keys(filters).length > 0 ? filters as never : undefined,
+        values.album
+      );
+      for (const m of result.mediaItems) {
+        console.log(`${m.id}\t${m.filename}\t${m.mimeType}\t${m.mediaMetadata.creationTime}`);
+      }
+      if (result.nextPageToken) {
+        console.log(`\n# More results available`);
+      }
+      return;
+    }
+
+    if (subCmd === "upload") {
+      const filePath = args[2];
+      if (!filePath) {
+        console.error("Error: Missing file path");
+        process.exit(1);
+      }
+      const { values } = parseArgs({
+        args: args.slice(3),
+        options: { album: { type: "string" }, desc: { type: "string" } },
+        allowPositionals: true,
+      });
+      let item;
+      if (values.album) {
+        item = await photosService.uploadToAlbum(email, filePath, values.album, values.desc);
+      } else {
+        item = await photosService.uploadMedia(email, filePath, values.desc);
+      }
+      console.log(`Uploaded: ${item.id}`);
+      console.log(`Filename: ${item.filename}`);
+      console.log(`URL: ${item.productUrl}`);
+      return;
+    }
+
+    if (subCmd === "download") {
+      const mediaId = args[2];
+      const outputPath = args[3];
+      if (!mediaId || !outputPath) {
+        console.error("Error: Missing media ID or output path");
+        process.exit(1);
+      }
+      const path = await photosService.downloadMedia(email, mediaId, outputPath);
+      console.log(`Downloaded: ${path}`);
+      return;
+    }
+
+    console.error(`Error: Unknown media command: ${subCmd}`);
+    process.exit(1);
+  }
+
+  if (command === "shared") {
+    const subCmd = args[1];
+
+    if (subCmd === "list") {
+      const result = await photosService.listSharedAlbums(email);
+      for (const a of result.sharedAlbums) {
+        console.log(`${a.id}\t${a.title}\t${a.mediaItemsCount || 0} items`);
+      }
+      return;
+    }
+
+    if (subCmd === "join") {
+      const shareToken = args[2];
+      if (!shareToken) {
+        console.error("Error: Missing share token");
+        process.exit(1);
+      }
+      const album = await photosService.joinSharedAlbum(email, shareToken);
+      console.log(`Joined: ${album.title}`);
+      console.log(`ID: ${album.id}`);
+      return;
+    }
+
+    if (subCmd === "leave") {
+      const shareToken = args[2];
+      if (!shareToken) {
+        console.error("Error: Missing share token");
+        process.exit(1);
+      }
+      await photosService.leaveSharedAlbum(email, shareToken);
+      console.log("Left shared album");
+      return;
+    }
+
+    console.error(`Error: Unknown shared command: ${subCmd}`);
+    process.exit(1);
+  }
+
+  console.error(`Error: Unknown photos command: ${command}`);
+  process.exit(1);
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
@@ -821,8 +1269,12 @@ async function main(): Promise<void> {
       await handleCal(email, serviceArgs);
     } else if (service === "drive") {
       await handleDrive(email, serviceArgs);
+    } else if (service === "sheets") {
+      await handleSheets(email, serviceArgs);
+    } else if (service === "photos") {
+      await handlePhotos(email, serviceArgs);
     } else {
-      console.error(`Error: Unknown service: ${service}. Use: mail, cal, or drive`);
+      console.error(`Error: Unknown service: ${service}. Use: mail, cal, drive, sheets, or photos`);
       process.exit(1);
     }
   } catch (e) {

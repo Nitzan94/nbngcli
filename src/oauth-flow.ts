@@ -1,5 +1,5 @@
 // ABOUTME: OAuth flow for Google APIs with combined scopes
-// ABOUTME: Supports Gmail, Calendar, and Drive in single authorization
+// ABOUTME: Supports Gmail, Calendar, Drive, Sheets, and Photos in single authorization
 
 import { spawn } from "child_process";
 import * as http from "http";
@@ -7,11 +7,13 @@ import * as readline from "readline";
 import * as url from "url";
 import { OAuth2Client } from "google-auth-library";
 
-// Combined scopes for all three services (full access)
+// Combined scopes for all services (full access)
 const SCOPES = [
   "https://mail.google.com/",
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/photoslibrary",
 ];
 
 const TIMEOUT_MS = 2 * 60 * 1000;
