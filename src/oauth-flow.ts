@@ -1,5 +1,5 @@
 // ABOUTME: OAuth flow for Google APIs with combined scopes
-// ABOUTME: Supports Gmail, Calendar, Drive, Sheets, and Photos in single authorization
+// ABOUTME: Supports Gmail, Calendar, Drive, Sheets, and Docs in single authorization
 
 import { spawn } from "child_process";
 import * as http from "http";
@@ -13,7 +13,7 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/drive",
   "https://www.googleapis.com/auth/spreadsheets",
-  "https://www.googleapis.com/auth/photoslibrary",
+  "https://www.googleapis.com/auth/documents",
 ];
 
 const TIMEOUT_MS = 2 * 60 * 1000;
@@ -52,10 +52,17 @@ export class OAuthFlow {
       redirectUri
     );
 
-    // Build URL manually with proper encoding
+    // Build URL with URLSearchParams for proper encoding
     const clientId = (this.oauth2Client as unknown as { _clientId: string })._clientId;
-    const scopeStr = SCOPES.map(s => encodeURIComponent(s)).join("%20");
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scopeStr}&access_type=offline&prompt=consent`;
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: SCOPES.join(" "),
+      access_type: "offline",
+      prompt: "consent",
+    });
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
     console.log("Visit this URL to authorize:");
     console.log(authUrl);
@@ -108,10 +115,17 @@ export class OAuthFlow {
           redirectUri
         );
 
-        // Build URL manually with proper encoding
+        // Build URL with URLSearchParams for proper encoding
         const clientId = (this.oauth2Client as unknown as { _clientId: string })._clientId;
-        const scopeStr = SCOPES.map(s => encodeURIComponent(s)).join("%20");
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scopeStr}&access_type=offline&prompt=consent`;
+        const params = new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          response_type: "code",
+          scope: SCOPES.join(" "),
+          access_type: "offline",
+          prompt: "consent",
+        });
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
         console.log("Opening browser for authorization...");
         console.log("If browser doesn't open, visit this URL:");

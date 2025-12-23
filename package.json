@@ -1,7 +1,7 @@
 {
   "name": "nbngcli",
   "version": "0.1.0",
-  "description": "Unified CLI for Gmail, Google Calendar, Google Drive, Google Sheets, and Google Photos",
+  "description": "Unified CLI for Gmail, Google Calendar, Google Drive, Google Sheets, and Google Docs",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {

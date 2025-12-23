@@ -1,4 +1,4 @@
-// ABOUTME: Unified account storage for Gmail, Calendar, Drive, Sheets, and Photos
+// ABOUTME: Unified account storage for Gmail, Calendar, Drive, Sheets, and Docs
 // ABOUTME: Manages OAuth credentials and account persistence in ~/.nbngcli/
 
 import * as fs from "fs";
