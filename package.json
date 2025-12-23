@@ -2,6 +2,7 @@
   "name": "nbngcli",
   "version": "0.1.0",
   "description": "Unified CLI for Gmail, Google Calendar, and Google Drive",
+  "type": "module",
   "main": "dist/cli.js",
   "bin": {
     "nbn": "./bin/nbn.js"
